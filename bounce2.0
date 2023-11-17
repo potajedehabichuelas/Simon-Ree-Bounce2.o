@@ -1,0 +1,160 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © potajedehabichuelas
+
+//@version=5
+indicator("Bounce 2.0", overlay=true)
+import TradingView/ta/5
+
+// Function to create rainbow colors
+rainbowColor(index) =>
+    // Define rainbow colors
+    var array<color> colors = array.from(color.red, color.orange, color.green, color.blue, color.purple)
+    // Get the color based on the index
+    indexColor = index % 6
+    colors.get(index)
+
+// Define inputs
+displayTrends = input(true, title="Display Trends")
+showRainbow = input(false, title="Show Rainbow EMA")
+showKChannels = input(true, title="Show Keltner Channels")
+showEntrySignals = input(true, title="Show Entry Signals")
+
+// Aqua tag -> strong trend
+// Green tag -> valid trend
+// Red tag -> no trend
+
+// colors
+color strongValidColorInput = input.color(color.new(color.aqua, 30), "Strong Entry Signal")
+color validColorInput = input.color(color.new(color.green, 30), "Valid Entry Signal")
+color invalidColorInput = input.color(color.new(color.red, 30), "Invalid Entry Signal")
+color warningColorInput = input.color(color.new(color.yellow, 30),"Warning Color")
+color neutColorInput = input.color(color.new(#b9bfd6, 30), "Neutral Color")
+
+// Define EMAs
+ema8 = ta.ema(close, 8)
+ema21 = ta.ema(close, 21)
+ema34 = ta.ema(close, 34)
+ema55 = ta.ema(close, 55)
+ema89 = ta.ema(close, 89)
+
+// Plot EMAs with rainbow colors
+plot(showRainbow ? ema8 : na, color=rainbowColor(0), title="EMA 8", linewidth=3)
+plot(showRainbow ? ema21: na, color=rainbowColor(1), title="EMA 21", linewidth=3)
+plot(showRainbow ? ema34: na, color=rainbowColor(2), title="EMA 34", linewidth=3)
+plot(showRainbow ? ema55: na, color=rainbowColor(3), title="EMA 55", linewidth=3)
+plot(showRainbow ? ema89: na, color=rainbowColor(4), title="EMA 89", linewidth=3)
+
+// Define Keltner Channels 
+[kcM1, kcU1, kcL1] = ta.kc(close, 21, 1)
+[kcM2, kcU2, kcL2] = ta.kc(close, 21, 2)
+[kcM3, kcU3, kcL3] = ta.kc(close, 21, 3)
+
+// Draw KC - All KC share the same mean 
+// Channel 1
+plot(showKChannels ? kcU1 : na, color=color.rgb(0, 148, 247), title = "KC +1 ATR")
+plot(showKChannels ? kcM1 : na, color=color.orange, title = "21 EMA Keltner Channel Mean")
+plot(showKChannels ? kcL1 : na, color=color.rgb(0, 148, 247), title = "KC -1 ATR")
+// Channel 2
+plot(showKChannels ? kcU2 : na, color=color.blue, title = "KC +2 ATR")
+plot(showKChannels ? kcL2 : na, color=color.blue, title = "KC -2 ATR")
+// Channel 3
+plot(showKChannels ? kcU3 : na, color=color.blue, title = "KC +3 ATR")
+plot(showKChannels ? kcL3 : na, color=color.blue, title = "KC -3 ATR")
+
+// Determine if there is an uptrend / downtrend
+bool uptrend = ema8 > ema21 and ema21 > ema34 and ema34 > ema55 and ema55 > ema89
+bool downtrend = ema8 < ema21 and ema21 < ema34 and ema34 < ema55 and ema55 < ema89
+
+// Color the background if setting was enabled and there was a trend
+displayUptrend = displayTrends and uptrend
+displayDowntrend = displayTrends and downtrend
+displayNoTrend = displayTrends and (not downtrend and not uptrend)
+
+bgcolor(displayUptrend ? color.new(color.green, 80) : na)
+bgcolor(displayDowntrend ? color.new(color.red, 80) : na)
+bgcolor(displayNoTrend ? color.new(color.gray, 80) : na)
+
+// Entry signals
+
+// Stochastic Oscillator Signal
+
+//stoch = ta.stoch(close, 8, 3, 3)
+[stochK, stochD] = ta.stochFull(8, 3, 3)
+
+overBoughtStochKThreshold = 60
+oversoldStochKThreshold = 40
+
+stochTag = str.format("{0,number, integer}", stochK)
+
+validEntryStoch = false
+if uptrend and stochK <= oversoldStochKThreshold or downtrend and stochK >= overBoughtStochKThreshold
+    validEntryStoch := true
+
+stochColor = validEntryStoch ? validColorInput : invalidColorInput
+
+// ADX Signal
+
+validADXThreshold = 20
+strongADXThreshold = 35
+
+[diplus, diminus, adx] = ta.dmi(13, 13)
+validEntryADX = adx >= validADXThreshold ? true : false
+strongADX = adx >= strongADXThreshold
+
+adxTag = str.format("{0,number, #.##}", adx)
+adxColor = validEntryADX ? validColorInput : invalidColorInput
+if validEntryADX and strongADX 
+    adxColor := strongValidColorInput
+
+
+// RSI Signal
+// TODO: 
+// RSI(2) < 10 for 5 consecutive days, more serious pullback is developing. Short term rally may present when back above 10 but risk of leg lower is much higher
+// Count amount of days RSI below 10
+
+rsi = ta.rsi(close, 2)
+validEntryRSI = false
+strongEntryRSI = false
+
+downtrendRSIThreshold = 90
+uptrendRSIThreshold = 10
+
+if barstate.islast
+    if uptrend and rsi <= uptrendRSIThreshold
+        validEntryRSI := true
+        if rsi < uptrendRSIThreshold
+            strongEntryRSI := true
+    else if downtrend and rsi >= downtrendRSIThreshold
+        validEntryRSI := true
+        if rsi > downtrendRSIThreshold
+            strongEntryRSI := true
+
+rsiColor = validEntryRSI ? validColorInput : invalidColorInput
+if validEntryRSI and strongEntryRSI 
+    rsiColor := strongValidColorInput
+rsiTag = str.format("{0,number, integer}", rsi)
+
+// TODO: Study price, enter bullish trade after close above the high of the low bar, vice versa bear
+// enter a bearish trade after a close below the low of the high bar
+
+// TODO: PUT CALL RATIO ?? JUST FOR FYI
+
+// Show label with current entry signals 
+if barstate.islast and showEntrySignals
+    var table panel = table.new(position.bottom_right, 2, 4)
+    table.cell(panel, 0, 0, "Signal", bgcolor = color.gray)
+    table.cell(panel, 1, 0, "Value", bgcolor = color.gray)
+
+    // Stoch
+    table.cell(panel, 0, 1, "Stoch", bgcolor = neutColorInput)
+    table.cell(panel, 1, 1, stochTag, bgcolor = stochColor)
+
+    // ADX
+    table.cell(panel, 0, 2, "ADX", bgcolor = neutColorInput)
+    table.cell(panel, 1, 2, adxTag, bgcolor = adxColor)
+
+    //RSI
+    table.cell(panel, 0, 3, "RSI", bgcolor = neutColorInput)
+    table.cell(panel, 1, 3, rsiTag, bgcolor = rsiColor)
+
+
