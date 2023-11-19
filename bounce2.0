@@ -5,6 +5,18 @@
 indicator("Bounce 2.0", overlay=true)
 import TradingView/ta/5
 
+// Function to map values to colors (from blue to orange)
+mapValueToColor(value, minValue, maxValue, opacity) =>
+    scale = 255 / (maxValue - minValue)
+    normalizedValue = math.min(math.max(value, minValue), maxValue)
+    
+    // Adjust the color components for a smooth transition from blue to orange
+    redComponent = math.max(math.min((normalizedValue - minValue) * scale, 255), 0)
+    greenComponent = math.max(math.min(255 - math.abs(normalizedValue - 50) * scale * 2, 255), 0)
+    blueComponent = math.max(math.min(255 - (normalizedValue - minValue) * scale, 255), 0)
+    color.rgb(redComponent, greenComponent, blueComponent, opacity)
+
+
 // Function to create rainbow colors
 rainbowColor(index) =>
     // Define rainbow colors
@@ -20,10 +32,15 @@ showKChannels = input(true, title="Show Keltner Channels")
 showEntrySignals = input(true, title="Show Entry Signals")
 showRSIEvolution = input(false, title="Show RSI Evolution")
 
+// Aqua tag -> strong trend
+// Green tag -> valid trend
+// Red tag -> no trend
+
 // colors
 color strongValidColorInput = input.color(color.new(color.aqua, 30), "Strong Entry Signal")
 color validColorInput = input.color(color.new(color.green, 30), "Valid Entry Signal")
 color invalidColorInput = input.color(color.new(color.red, 30), "Invalid Entry Signal")
+color warningColorInput = input.color(color.new(color.yellow, 30),"Warning Color")
 color neutColorInput = input.color(color.new(#b9bfd6, 30), "Neutral Color")
 
 // Define EMAs
@@ -104,15 +121,16 @@ if validEntryADX and strongADX
 
 
 // RSI Signal
-// RSI(2) < 10 for 5 consecutive days, more serious pullback is developing. 
-//Short term rally may present when back above 10 but risk of leg lower is much higher
+// TODO: 
+// RSI(2) < 10 for 5 consecutive days, more serious pullback is developing. Short term rally may present when back above 10 but risk of leg lower is much higher
+// Count amount of days RSI below 10
+
 rsi = ta.rsi(close, 2)
 validEntryRSI = false
 strongEntryRSI = false
 
-thresholdExtraRange = (10 * 0.2) // Extra 20%, RSI max: 100, min: 0)
-downtrendRSIThreshold = 90 - thresholdExtraRange
-uptrendRSIThreshold = 10 + thresholdExtraRange
+downtrendRSIThreshold = 90
+uptrendRSIThreshold = 10
 
 if barstate.islast
     if uptrend and rsi <= uptrendRSIThreshold
@@ -128,6 +146,11 @@ rsiColor = validEntryRSI ? validColorInput : invalidColorInput
 if validEntryRSI and strongEntryRSI 
     rsiColor := strongValidColorInput
 rsiTag = str.format("{0,number, integer}", rsi)
+
+// TODO: Study price, enter bullish trade after close above the high of the low bar, vice versa bear
+// enter a bearish trade after a close below the low of the high bar
+
+// TODO: PUT CALL RATIO ?? JUST FOR FYI
 
 // Show label with current entry signals 
 if barstate.islast and showEntrySignals
@@ -145,18 +168,6 @@ if barstate.islast and showEntrySignals
     //RSI
     table.cell(entrySignalsPanel, 0, 3, "RSI", bgcolor = neutColorInput)
     table.cell(entrySignalsPanel, 1, 3, rsiTag, bgcolor = rsiColor)
-
-// Function to map values to colors
-mapValueToColor(value, minValue, maxValue, opacity) =>
-    scale = 255 / (maxValue - minValue)
-    normalizedValue = math.min(math.max(value, minValue), maxValue)
-    
-    // Adjust the color components for a smooth transition from blue to orange
-    redComponent = math.max(math.min((normalizedValue - minValue) * scale, 255), 0)
-    greenComponent = math.max(math.min(255 - math.abs(normalizedValue - 50) * scale * 2, 255), 0)
-    blueComponent = math.max(math.min(255 - (normalizedValue - minValue) * scale, 255), 0)
-    color.rgb(redComponent, greenComponent, blueComponent, opacity)
-
 
 if showRSIEvolution
     // Add RSI of the last 5 days
