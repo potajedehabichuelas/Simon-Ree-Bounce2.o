@@ -18,6 +18,7 @@ displayTrends = input(true, title="Display Trends")
 showRainbow = input(false, title="Show Rainbow EMA")
 showKChannels = input(true, title="Show Keltner Channels")
 showEntrySignals = input(true, title="Show Entry Signals")
+showRSIEvolution = input(false, title="Show RSI Evolution")
 
 // Aqua tag -> strong trend
 // Green tag -> valid trend
@@ -27,7 +28,6 @@ showEntrySignals = input(true, title="Show Entry Signals")
 color strongValidColorInput = input.color(color.new(color.aqua, 30), "Strong Entry Signal")
 color validColorInput = input.color(color.new(color.green, 30), "Valid Entry Signal")
 color invalidColorInput = input.color(color.new(color.red, 30), "Invalid Entry Signal")
-color warningColorInput = input.color(color.new(color.yellow, 30),"Warning Color")
 color neutColorInput = input.color(color.new(#b9bfd6, 30), "Neutral Color")
 
 // Define EMAs
@@ -108,16 +108,15 @@ if validEntryADX and strongADX
 
 
 // RSI Signal
-// TODO: 
-// RSI(2) < 10 for 5 consecutive days, more serious pullback is developing. Short term rally may present when back above 10 but risk of leg lower is much higher
-// Count amount of days RSI below 10
-
+// RSI(2) < 10 for 5 consecutive days, more serious pullback is developing. 
+//Short term rally may present when back above 10 but risk of leg lower is much higher
 rsi = ta.rsi(close, 2)
 validEntryRSI = false
 strongEntryRSI = false
 
-downtrendRSIThreshold = 90
-uptrendRSIThreshold = 10
+thresholdExtraRange = (10 * 0.2) // Extra 20%, RSI max: 100, min: 0)
+downtrendRSIThreshold = 90 - thresholdExtraRange
+uptrendRSIThreshold = 10 + thresholdExtraRange
 
 if barstate.islast
     if uptrend and rsi <= uptrendRSIThreshold
@@ -134,27 +133,55 @@ if validEntryRSI and strongEntryRSI
     rsiColor := strongValidColorInput
 rsiTag = str.format("{0,number, integer}", rsi)
 
-// TODO: Study price, enter bullish trade after close above the high of the low bar, vice versa bear
-// enter a bearish trade after a close below the low of the high bar
-
-// TODO: PUT CALL RATIO ?? JUST FOR FYI
-
 // Show label with current entry signals 
 if barstate.islast and showEntrySignals
-    var table panel = table.new(position.bottom_right, 2, 4)
-    table.cell(panel, 0, 0, "Signal", bgcolor = color.gray)
-    table.cell(panel, 1, 0, "Value", bgcolor = color.gray)
+    var table entrySignalsPanel = table.new(position.middle_right, 2, 4)
+    table.cell(entrySignalsPanel, 0, 0, "Signal", bgcolor = color.gray)
+    table.cell(entrySignalsPanel, 1, 0, "Value", bgcolor = color.gray)
 
     // Stoch
-    table.cell(panel, 0, 1, "Stoch", bgcolor = neutColorInput)
-    table.cell(panel, 1, 1, stochTag, bgcolor = stochColor)
+    table.cell(entrySignalsPanel, 0, 1, "Stoch", bgcolor = neutColorInput)
+    table.cell(entrySignalsPanel, 1, 1, stochTag, bgcolor = stochColor)
 
     // ADX
-    table.cell(panel, 0, 2, "ADX", bgcolor = neutColorInput)
-    table.cell(panel, 1, 2, adxTag, bgcolor = adxColor)
-
+    table.cell(entrySignalsPanel, 0, 2, "ADX", bgcolor = neutColorInput)
+    table.cell(entrySignalsPanel, 1, 2, adxTag, bgcolor = adxColor)
     //RSI
-    table.cell(panel, 0, 3, "RSI", bgcolor = neutColorInput)
-    table.cell(panel, 1, 3, rsiTag, bgcolor = rsiColor)
+    table.cell(entrySignalsPanel, 0, 3, "RSI", bgcolor = neutColorInput)
+    table.cell(entrySignalsPanel, 1, 3, rsiTag, bgcolor = rsiColor)
+
+// Function to map values to colors
+mapValueToColor(value, minValue, maxValue, opacity) =>
+    scale = 255 / (maxValue - minValue)
+    normalizedValue = math.min(math.max(value, minValue), maxValue)
+    
+    // Adjust the color components for a smooth transition from blue to orange
+    redComponent = math.max(math.min((normalizedValue - minValue) * scale, 255), 0)
+    greenComponent = math.max(math.min(255 - math.abs(normalizedValue - 50) * scale * 2, 255), 0)
+    blueComponent = math.max(math.min(255 - (normalizedValue - minValue) * scale, 255), 0)
+    color.rgb(redComponent, greenComponent, blueComponent, opacity)
 
 
+if showRSIEvolution
+    // Add RSI of the last 5 days
+    var table rsiTable = table.new(position.bottom_right, 6, 2)
+                // Cells
+    table.cell(rsiTable, 0, 0, "Days Ago", bgcolor = color.gray)
+    table.cell(rsiTable, 0, 1, "RSI", bgcolor = color.gray)
+
+    // Dynamic color range based on uptrend / downtrend to better visualize RSI evolution
+    colorRangeMax = 95
+    colorRangeMin = 5
+    int dayHistory = 5
+    for i = 1 to dayHistory-1
+        index = dayHistory-i
+        rsiValue = rsi[index]
+        rsiHTag = str.format("{0,number, integer}", rsiValue)
+        rsiDayHTag = str.format("{0,number, integer}", index)
+
+        rsiBgColor = color.black
+        if rsiValue <= 30 or rsiValue >= 70
+            rsiBgColor := mapValueToColor(rsiValue, colorRangeMin, colorRangeMax, 70)   
+
+        table.cell(rsiTable, i, 0, rsiDayHTag,bgcolor = color.gray)
+        table.cell(rsiTable, i, 1, rsiHTag, bgcolor = rsiBgColor, text_color = color.rgb(168, 168, 168))
