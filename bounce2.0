@@ -20,10 +20,6 @@ showKChannels = input(true, title="Show Keltner Channels")
 showEntrySignals = input(true, title="Show Entry Signals")
 showRSIEvolution = input(false, title="Show RSI Evolution")
 
-// Aqua tag -> strong trend
-// Green tag -> valid trend
-// Red tag -> no trend
-
 // colors
 color strongValidColorInput = input.color(color.new(color.aqua, 30), "Strong Entry Signal")
 color validColorInput = input.color(color.new(color.green, 30), "Valid Entry Signal")
